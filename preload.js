@@ -32,7 +32,13 @@ contextBridge.exposeInMainWorld('sysglas', {
   setGlassMode:    (v) => ipcRenderer.send('config:set-glass-mode', v),
   hideWidget:      () => ipcRenderer.send('widget:hide'),
   setStandby:      (isStandby, contentHeight) => ipcRenderer.send('widget:set-standby', isStandby, contentHeight),
-  quitApp:         () => ipcRenderer.send('app:quit'),
+  // Auto-updater
+  onUpdateAvailable:  (cb) => ipcRenderer.on('updater:available',  (_e, info) => cb(info)),
+  onUpdateProgress:   (cb) => ipcRenderer.on('updater:progress',   (_e, progress) => cb(progress)),
+  onUpdateDownloaded: (cb) => ipcRenderer.on('updater:downloaded', (_e, info) => cb(info)),
+  restartAndInstall:  () => ipcRenderer.send('updater:restart-and-install'),
+  checkForUpdates:    () => ipcRenderer.invoke('updater:check'),
+  quitApp:            () => ipcRenderer.send('app:quit'),
 
   // Platform info
   platform: process.platform,

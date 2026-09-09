@@ -1,6 +1,6 @@
 {
   "name": "sysglas",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "SYSGLAS — Hardware Monitor · Glassmorphism system tray app",
   "main": "electron-main.js",
   "author": "SYSGLAS",
@@ -19,6 +19,13 @@
     "directories": {
       "output": "dist"
     },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "hugulinux",
+        "repo": "sysglas-app"
+      }
+    ],
     "files": [
       "assets/**/*",
       "renderer/**/*",
@@ -57,6 +64,7 @@
   },
   "dependencies": {
     "chart.js": "^4.5.1",
+    "electron-updater": "^6.8.9",
     "systeminformation": "^5.23.5"
   },
   "devDependencies": {

@@ -11,6 +11,7 @@ const fs = require('fs');
 const os = require('os');
 const { exec } = require('child_process');
 const si = require('systeminformation');
+const { autoUpdater } = require('electron-updater');
 
 // ─── Single-instance guard ───────────────────────────────────────────────
 if (!app.requestSingleInstanceLock()) {
@@ -69,6 +70,7 @@ let isPolling = false;
 let lastSnapshot = null;
 let isWidgetInStandby = false;
 let normalWindowBounds = null;
+let updateDownloadedInfo = null;
 
 const LOG_FILE = path.join(__dirname, 'sysglas.log');
 function log(msg) {
@@ -92,7 +94,19 @@ function trayIcon() {
 // ─── Tray menu ───────────────────────────────────────────────────────────
 function buildTrayMenu() {
   const isVis = widget && !widget.isDestroyed() && widget.isVisible();
-  return Menu.buildFromTemplate([
+  const template = [];
+
+  if (updateDownloadedInfo) {
+    template.push(
+      {
+        label: `✨ Reiniciar e Instalar Atualização (${updateDownloadedInfo.version})`,
+        click: () => autoUpdater.quitAndInstall(false, true),
+      },
+      { type: 'separator' }
+    );
+  }
+
+  template.push(
     {
       label: isVis ? 'Ocultar Widget' : 'Exibir Widget',
       click: () => toggleWidget(),
@@ -148,6 +162,24 @@ function buildTrayMenu() {
     },
     { type: 'separator' },
     {
+      label: 'Verificar Atualizações...',
+      click: () => {
+        if (!app.isPackaged) {
+          const { dialog } = require('electron');
+          dialog.showMessageBox({
+            type: 'info',
+            title: 'Atualizações',
+            message: 'Modo de Desenvolvimento',
+            detail: 'O auto-update pesquisa releases quando o aplicativo estiver empacotado/instalado.',
+          });
+          return;
+        }
+        autoUpdater.checkForUpdates().catch((err) => {
+          log(`[UPDATER MANUAL ERROR] ${err.message}`);
+        });
+      },
+    },
+    {
       label: 'Abrir Arquivo de Configuração',
       click: () => shell.openPath(CONFIG_PATH()),
     },
@@ -159,14 +191,16 @@ function buildTrayMenu() {
           type: 'info',
           title: 'SYSGLAS Hardware Widget',
           message: 'SYSGLAS · Hardware Monitor Widget',
-          detail: `Versão 0.2.0 (High-Performance Widget)\nElectron ${process.versions.electron}\nNode ${process.versions.node}\n\nWidget flutuante ultra-leve com telemetria ao vivo.`,
+          detail: `Versão ${app.getVersion()} (High-Performance Widget)\nElectron ${process.versions.electron}\nNode ${process.versions.node}\n\nWidget flutuante ultra-leve com telemetria ao vivo.`,
           buttons: ['OK'],
         });
       },
     },
     { type: 'separator' },
-    { label: 'Sair do SYSGLAS', click: () => quitApp() },
-  ]);
+    { label: 'Sair do SYSGLAS', click: () => quitApp() }
+  );
+
+  return Menu.buildFromTemplate(template);
 }
 
 function refreshTrayMenu() {
@@ -221,9 +255,9 @@ function createWidget() {
     transparent:     true,
     backgroundColor: '#00000000',
     resizable:       true,
-    minimizable:     true,
+    minimizable:     false,
     maximizable:     false,
-    skipTaskbar:     false,
+    skipTaskbar:     true,
     alwaysOnTop:     config.alwaysOnTop,
     hasShadow:       false,
     minWidth:        320,
@@ -307,8 +341,15 @@ function createWidget() {
 }
 
 function toggleWidget() {
-  if (!widget || widget.isDestroyed()) createWidget();
-  if (widget.isVisible()) {
+  if (!widget || widget.isDestroyed()) {
+    createWidget();
+    return;
+  }
+  if (widget.isMinimized()) {
+    widget.restore();
+    widget.show();
+    widget.focus();
+  } else if (widget.isVisible()) {
     widget.hide();
   } else {
     widget.show();
@@ -319,6 +360,7 @@ function toggleWidget() {
 
 function showWidget() {
   if (!widget || widget.isDestroyed()) createWidget();
+  if (widget.isMinimized()) widget.restore();
   widget.show();
   widget.focus();
   refreshTrayMenu();
@@ -827,6 +869,80 @@ app.on('will-quit', () => {
   if (tray) tray.destroy();
 });
 
+// ─── Auto-Updater ────────────────────────────────────────────────────────
+function initAutoUpdater() {
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+
+  autoUpdater.on('checking-for-update', () => {
+    log('[UPDATER] Verificando se há atualizações...');
+  });
+
+  autoUpdater.on('update-available', (info) => {
+    log(`[UPDATER] Nova versão disponível: ${info.version}`);
+    if (widget && !widget.isDestroyed()) {
+      widget.webContents.send('updater:available', info);
+    }
+  });
+
+  autoUpdater.on('update-not-available', (info) => {
+    log(`[UPDATER] App atualizado na versão ${info.version}`);
+  });
+
+  autoUpdater.on('download-progress', (progress) => {
+    if (widget && !widget.isDestroyed()) {
+      widget.webContents.send('updater:progress', {
+        percent: Math.round(progress.percent || 0),
+        bytesPerSecond: progress.bytesPerSecond,
+        transferred: progress.transferred,
+        total: progress.total,
+      });
+    }
+  });
+
+  autoUpdater.on('update-downloaded', (info) => {
+    log(`[UPDATER] Atualização baixada com sucesso: ${info.version}`);
+    updateDownloadedInfo = info;
+    refreshTrayMenu();
+    if (widget && !widget.isDestroyed()) {
+      widget.webContents.send('updater:downloaded', info);
+    }
+  });
+
+  autoUpdater.on('error', (err) => {
+    log(`[UPDATER ERROR] ${err ? err.message : 'desconhecido'}`);
+  });
+
+  if (app.isPackaged) {
+    setTimeout(() => {
+      autoUpdater.checkForUpdates().catch(err => {
+        log(`[UPDATER ERROR] verificação inicial falhou: ${err.message}`);
+      });
+    }, 5000);
+
+    // Checar a cada 4 horas
+    setInterval(() => {
+      autoUpdater.checkForUpdates().catch(() => {});
+    }, 4 * 60 * 60 * 1000);
+  } else {
+    log('[UPDATER] Executando em desenvolvimento. Auto-update ativo no app empacotado.');
+  }
+}
+
+ipcMain.on('updater:restart-and-install', () => {
+  autoUpdater.quitAndInstall(false, true);
+});
+
+ipcMain.handle('updater:check', async () => {
+  if (!app.isPackaged) return { isPackaged: false };
+  try {
+    const res = await autoUpdater.checkForUpdates();
+    return { success: true, version: res?.updateInfo?.version };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
 app.whenReady().then(async () => {
   app.setLoginItemSettings({
     openAtLogin:  config.startWithWin,
@@ -840,6 +956,7 @@ app.whenReady().then(async () => {
   createWidget();
   await initStaticHardware();
   startPolling();
+  initAutoUpdater();
 });
 
 // Disable navigation away from the widget (security)

@@ -869,6 +869,38 @@ async function init() {
   // Ativado como padrão: entra em standby após 3 segundos sem interação
   resetStandbyTimer();
 
+  // ── Auto-updater UI Listeners ──
+  const updateBanner = $('#update-banner');
+  const updateText = $('#update-text');
+  const updateBtn = $('#update-btn');
+
+  if (window.sysglas && updateBanner) {
+    if (window.sysglas.onUpdateProgress) {
+      window.sysglas.onUpdateProgress((p) => {
+        updateBanner.classList.remove('hidden');
+        if (updateText) updateText.textContent = `Baixando atualização: ${p.percent}%`;
+        if (updateBtn) updateBtn.style.display = 'none';
+      });
+    }
+
+    if (window.sysglas.onUpdateDownloaded) {
+      window.sysglas.onUpdateDownloaded((info) => {
+        updateBanner.classList.remove('hidden');
+        if (updateText) updateText.textContent = `Nova versão ${info.version || ''} pronta!`;
+        if (updateBtn) {
+          updateBtn.style.display = 'block';
+          updateBtn.textContent = 'Reiniciar';
+        }
+      });
+    }
+
+    if (updateBtn && window.sysglas.restartAndInstall) {
+      updateBtn.addEventListener('click', () => {
+        window.sysglas.restartAndInstall();
+      });
+    }
+  }
+
   // Initial colors
   setTimeout(refreshChartColors, 60);
 }
