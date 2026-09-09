@@ -1,0 +1,42 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+sysglas.log
+
+# Dependency directories
+node_modules/
+
+# Build and packaging output
+dist/
+out/
+build/
+
+# Electron builder cache
+.electron-builder/
+
+# Environment and secrets
+.env
+.env.local
+.env.*.local
+
+# Operating System files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE and editors
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

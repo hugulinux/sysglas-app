@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; script-src 'self'; img-src 'self' data:;">
+  <title>SYSGLAS Widget</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="chart.umd.js"></script>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body data-theme="neon" data-glass="true">
+
+  <!-- TITLEBAR / WIDGET HEADER (draggable) -->
+  <header class="widget-header">
+    <div class="header-actions">
+      <!-- Theme quick switcher -->
+      <button class="icon-btn" id="theme-btn" title="Alternar Tema">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+        </svg>
+      </button>
+
+      <!-- iOS 26 Liquid Glass Mode Toggle -->
+      <button class="icon-btn active" id="glass-btn" title="Modo Vidro iOS 26 (Transparência Extrema)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="12 2 2 7 12 12 22 7 12 2"/>
+          <polyline points="2 17 12 22 22 17"/>
+          <polyline points="2 12 12 17 22 12"/>
+        </svg>
+      </button>
+
+      <!-- Opacity Slider Toggle -->
+      <button class="icon-btn" id="opacity-btn" title="Ajustar Transparência do Vidro (0% a 100%)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="9"/>
+          <path d="M12 3a9 9 0 0 1 0 18z"/>
+        </svg>
+      </button>
+
+      <!-- Modo Jogo (Overlay persistente sobre Jogos & Alt+Tab) -->
+      <button class="icon-btn active" id="game-btn" title="Modo Jogo (Sobrepor Jogos & Alt+Tab)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="2" y="6" width="20" height="12" rx="4"/>
+          <line x1="6" y1="12" x2="10" y2="12"/>
+          <line x1="8" y1="10" x2="8" y2="14"/>
+          <circle cx="15" cy="11" r="1.2" fill="currentColor"/>
+          <circle cx="18" cy="13" r="1.2" fill="currentColor"/>
+        </svg>
+      </button>
+
+      <!-- Pin / Always on top toggle -->
+      <button class="icon-btn active" id="pin-btn" title="Fixar no Topo (Always on Top)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-2l-3-3V5a2 2 0 0 0-4 0v7l-3 3v2z"/>
+        </svg>
+      </button>
+
+      <!-- Minimize / Hide to tray -->
+      <button class="icon-btn" id="hide-btn" title="Ocultar na Bandeja (Tray)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- OPACITY SLIDER FLYOUT (0% a 100%) -->
+  <div class="opacity-drawer hidden" id="opacity-drawer">
+    <div class="drawer-header">
+      <span class="drawer-title">TRANSPARÊNCIA DO VIDRO</span>
+      <span class="drawer-val" id="opacity-val-text">85%</span>
+    </div>
+    <div class="slider-row">
+      <span class="slider-min">0%</span>
+      <input type="range" id="opacity-range" min="0" max="100" value="85" step="1" class="glass-slider" />
+      <span class="slider-max">100%</span>
+    </div>
+    <div class="preset-chips">
+      <button class="chip" data-val="0">0%</button>
+      <button class="chip" data-val="30">30%</button>
+      <button class="chip" data-val="50">50%</button>
+      <button class="chip" data-val="70">70%</button>
+      <button class="chip" data-val="85">85%</button>
+      <button class="chip" data-val="100">100%</button>
+    </div>
+  </div>
+
+  <!-- WIDGET CONTENT (Sleek Vertical Stream) -->
+  <main class="widget-body">
+
+    <!-- 1. CPU CARD -->
+    <section class="widget-card" id="card-cpu">
+      <div class="card-head">
+        <div class="card-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/>
+          </svg>
+          <span>CPU</span>
+        </div>
+        <div class="card-meta" id="cpu-model">—</div>
+      </div>
+
+      <div class="cpu-main">
+        <!-- Hero Gauge -->
+        <div class="gauge-wrap">
+          <svg viewBox="0 0 100 100" class="gauge-svg">
+            <circle class="g-track" cx="50" cy="50" r="40"/>
+            <circle class="g-fill g-fill-cpu" cx="50" cy="50" r="40" stroke-dasharray="251.32" stroke-dashoffset="251.32" transform="rotate(-90 50 50)" id="g-cpu"/>
+          </svg>
+          <div class="gauge-inner">
+            <span class="g-value" id="g-cpu-v">0%</span>
+            <span class="g-label">CARGA</span>
+          </div>
+        </div>
+
+        <!-- CPU Quick Stats -->
+        <div class="cpu-stats">
+          <div class="mini-stat">
+            <span class="ms-lbl">TEMP</span>
+            <span class="ms-val" id="g-temp-v">--°C</span>
+          </div>
+          <div class="mini-stat">
+            <span class="ms-lbl">CLOCK</span>
+            <span class="ms-val" id="g-freq-v">-- GHz</span>
+          </div>
+          <div class="mini-stat">
+            <span class="ms-lbl">POWER</span>
+            <span class="ms-val" id="g-power-v">-- W</span>
+          </div>
+          <div class="mini-stat">
+            <span class="ms-lbl">THREADS</span>
+            <span class="ms-val" id="cpu-cores-v">--</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- CPU Mini Sparkline -->
+      <div class="sparkline-wrap">
+        <canvas id="spark-cpu"></canvas>
+      </div>
+    </section>
+
+    <!-- 2. GPU CARD (TELEMETRY) -->
+    <section class="widget-card" id="card-gpu">
+      <div class="card-head">
+        <div class="card-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="8" cy="12" r="1.5"/><circle cx="16" cy="12" r="1.5"/>
+          </svg>
+          <span>GPU</span>
+        </div>
+        <div class="card-meta" id="gpu-model">GPU</div>
+      </div>
+
+      <div class="gpu-content">
+        <div class="gpu-row">
+          <div class="stat-pill">
+            <span class="sp-lbl">USO</span>
+            <span class="sp-val" id="gpu-load-v">0%</span>
+          </div>
+          <div class="stat-pill">
+            <span class="sp-lbl">TEMP</span>
+            <span class="sp-val" id="gpu-temp-v">--°C</span>
+          </div>
+          <div class="stat-pill">
+            <span class="sp-lbl">POTÊNCIA</span>
+            <span class="sp-val" id="gpu-power-v">-- W</span>
+          </div>
+        </div>
+
+        <!-- GPU VRAM Bar -->
+        <div class="metric-bar-group">
+          <div class="mb-header">
+            <span>VRAM</span>
+            <span class="mb-text" id="gpu-vram-v">0 / 0 GB</span>
+          </div>
+          <div class="mb-track">
+            <div class="mb-fill mb-fill-gpu" id="gpu-vram-bar" style="width: 0%"></div>
+          </div>
+        </div>
+
+        <!-- GPU Live Chart -->
+        <div class="gpu-chart-wrap">
+          <canvas id="chart-gpu-load"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. RAM & DISK SECTION -->
+    <section class="widget-card" id="card-memory">
+      <div class="card-head">
+        <div class="card-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="2" y="6" width="20" height="12" rx="1"/><line x1="6" y1="10" x2="6" y2="14"/><line x1="10" y1="10" x2="10" y2="14"/><line x1="14" y1="10" x2="14" y2="14"/>
+          </svg>
+          <span>MEMÓRIA &amp; DISCO</span>
+        </div>
+        <div class="card-meta" id="uptime-v">--</div>
+      </div>
+
+      <div class="bars-container">
+        <!-- RAM Bar -->
+        <div class="metric-bar-group">
+          <div class="mb-header">
+            <span class="mb-tag">RAM</span>
+            <span class="mb-text" id="mem-v">— / — GB</span>
+            <span class="mb-pct" id="mem-pct">0%</span>
+          </div>
+          <div class="mb-track">
+            <div class="mb-fill mb-fill-ram" id="mem-bar" style="width: 0%"></div>
+          </div>
+        </div>
+
+        <!-- Disk Bar -->
+        <div class="metric-bar-group">
+          <div class="mb-header">
+            <span class="mb-tag">DISCO</span>
+            <span class="mb-text" id="disk-v">— / — GB</span>
+            <span class="mb-pct" id="disk-pct">0%</span>
+          </div>
+          <div class="mb-track">
+            <div class="mb-fill mb-fill-disk" id="disk-bar" style="width: 0%"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. NETWORK & LIVE TRAFFIC -->
+    <section class="widget-card" id="card-net">
+      <div class="card-head">
+        <div class="card-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242M8 19l4-4 4 4M12 15v8"/>
+          </svg>
+          <span>REDE &amp; TRÁFEGO</span>
+        </div>
+        <div class="card-meta" id="net-rate-v">0 KB/s</div>
+      </div>
+
+      <div class="net-row">
+        <div class="net-stat">
+          <span class="net-arrow down">↓</span>
+          <div class="net-info">
+            <span class="net-lbl">DOWN</span>
+            <span class="net-val" id="net-rx-v">0 B/s</span>
+          </div>
+        </div>
+        <div class="net-stat">
+          <span class="net-arrow up">↑</span>
+          <div class="net-info">
+            <span class="net-lbl">UP</span>
+            <span class="net-val" id="net-tx-v">0 B/s</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="sparkline-wrap net-spark-wrap">
+        <canvas id="spark-net"></canvas>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- WIDGET FOOTER -->
+  <footer class="widget-footer">
+    <span class="footer-hint">SYSGLAS · Hardware Widget</span>
+    <span class="footer-os" id="os-meta">Windows</span>
+  </footer>
+
+  <!-- Loading overlay — fades out instantly on first sensor snapshot -->
+  <div class="loading" id="loading">
+    <div class="loading-inner">
+      <div class="loading-spinner"></div>
+      <span>Iniciando Widget...</span>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

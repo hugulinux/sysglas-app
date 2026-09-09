@@ -1,0 +1,65 @@
+{
+  "name": "sysglas",
+  "version": "0.1.0",
+  "description": "SYSGLAS — Hardware Monitor · Glassmorphism system tray app",
+  "main": "electron-main.js",
+  "author": "SYSGLAS",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --enable-logging",
+    "icon": "node make-icon.js",
+    "dist": "electron-builder",
+    "dist:portable": "electron-builder --win portable",
+    "dist:installer": "electron-builder --win nsis"
+  },
+  "build": {
+    "appId": "com.sysglas.widget",
+    "productName": "SYSGLAS",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "assets/**/*",
+      "renderer/**/*",
+      "electron-main.js",
+      "preload.js",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "SYSGLAS"
+    }
+  },
+  "dependencies": {
+    "chart.js": "^4.5.1",
+    "systeminformation": "^5.23.5"
+  },
+  "devDependencies": {
+    "electron": "^31.7.7",
+    "electron-builder": "^24.13.3"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
