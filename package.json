@@ -1,6 +1,6 @@
 {
   "name": "sysglas",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "SYSGLAS — Hardware Monitor · Glassmorphism system tray app",
   "main": "electron-main.js",
   "author": "SYSGLAS",

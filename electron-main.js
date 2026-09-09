@@ -64,6 +64,7 @@ let tray = null;
 let widget = null;
 let pollTimer = null;
 let diskTimer = null;
+let gpuTimer = null;
 let isPolling = false;
 let lastSnapshot = null;
 let isWidgetInStandby = false;
@@ -428,6 +429,31 @@ async function initStaticHardware() {
   } catch (e) {
     console.warn('[SYSGLAS] static cpu query fallback:', e.message);
   }
+
+  try {
+    const g = await si.graphics();
+    if (g && g.controllers && g.controllers.length > 0) {
+      const ctrl = g.controllers.reduce((best, cur) => {
+        const curVram = cur.vram || cur.memoryTotal || 0;
+        const bestVram = best.vram || best.memoryTotal || 0;
+        return curVram > bestVram ? cur : best;
+      }, g.controllers[0]);
+
+      const vramBytes = (ctrl.vram || ctrl.memoryTotal || 0) * 1024 * 1024;
+      const modelName = (ctrl.model || ctrl.name || 'GPU').trim();
+      const vendorName = (ctrl.vendor || '').trim();
+
+      cachedGpu.vendor = vendorName;
+      cachedGpu.model = modelName;
+      if (vramBytes > 0) cachedGpu.vramTotal = vramBytes;
+      if (typeof ctrl.memoryUsed === 'number' && ctrl.memoryUsed > 0) cachedGpu.vram = ctrl.memoryUsed * 1024 * 1024;
+      if (typeof ctrl.utilizationGpu === 'number') cachedGpu.load = ctrl.utilizationGpu;
+      if (typeof ctrl.temperatureGpu === 'number') cachedGpu.temp = ctrl.temperatureGpu;
+      if (typeof ctrl.powerDraw === 'number') cachedGpu.power = ctrl.powerDraw;
+    }
+  } catch (e) {
+    console.warn('[SYSGLAS] static gpu query fallback:', e.message);
+  }
 }
 
 // 2. Instant CPU Load calculation via native os.cpus() (0.05ms latency)
@@ -484,17 +510,41 @@ function getMemoryMetrics() {
   };
 }
 
-// 4. GPU Telemetry via fast direct nvidia-smi query (~30ms)
+// 4. GPU Telemetry via fast direct nvidia-smi query (~30ms) or systeminformation
 let hasNvidia = null;
 let cachedGpu = {
-  vendor: 'NVIDIA',
-  model: 'RTX 3060 Ti',
+  vendor: '',
+  model: 'GPU',
   vram: 0,
-  vramTotal: 8 * 1024 * 1024 * 1024,
+  vramTotal: 0,
   load: 0,
-  temp: 50,
-  power: 35,
+  temp: 0,
+  power: 0,
 };
+
+async function updateGpuBackground() {
+  if (hasNvidia === true) return;
+  try {
+    const g = await si.graphics();
+    if (g && g.controllers && g.controllers.length > 0) {
+      const ctrl = g.controllers.reduce((best, cur) => {
+        const curVram = cur.vram || cur.memoryTotal || 0;
+        const bestVram = best.vram || best.memoryTotal || 0;
+        return curVram > bestVram ? cur : best;
+      }, g.controllers[0]);
+
+      const vramBytes = (ctrl.vram || ctrl.memoryTotal || 0) * 1024 * 1024;
+      const modelName = (ctrl.model || ctrl.name || 'GPU').trim();
+      cachedGpu.vendor = (ctrl.vendor || '').trim();
+      cachedGpu.model = modelName;
+      if (vramBytes > 0) cachedGpu.vramTotal = vramBytes;
+      if (typeof ctrl.memoryUsed === 'number' && ctrl.memoryUsed > 0) cachedGpu.vram = ctrl.memoryUsed * 1024 * 1024;
+      if (typeof ctrl.utilizationGpu === 'number') cachedGpu.load = ctrl.utilizationGpu;
+      if (typeof ctrl.temperatureGpu === 'number') cachedGpu.temp = ctrl.temperatureGpu;
+      if (typeof ctrl.powerDraw === 'number') cachedGpu.power = ctrl.powerDraw;
+    }
+  } catch (e) {}
+}
 
 function getGpuMetrics() {
   return new Promise((resolve) => {
@@ -505,7 +555,10 @@ function getGpuMetrics() {
       { timeout: 700 },
       (err, stdout) => {
         if (err || !stdout) {
-          if (hasNvidia === null) hasNvidia = false;
+          if (hasNvidia === null) {
+            hasNvidia = false;
+            updateGpuBackground();
+          }
           return resolve(cachedGpu);
         }
         hasNvidia = true;
@@ -513,7 +566,7 @@ function getGpuMetrics() {
           const parts = stdout.trim().split(',').map(s => s.trim());
           const load = parseFloat(parts[0]) || 0;
           const memUsedMb = parseFloat(parts[1]) || 0;
-          const memTotalMb = parseFloat(parts[2]) || 8192;
+          const memTotalMb = parseFloat(parts[2]) || (cachedGpu.vramTotal ? cachedGpu.vramTotal / (1024 * 1024) : 0);
           const temp = parseFloat(parts[3]) || 0;
           const power = parseFloat(parts[4]) || 0;
           const name = parts[5] || cachedGpu.model;
@@ -650,6 +703,7 @@ function startPolling() {
   // Start 30s background disk refresh
   updateDiskBackground();
   diskTimer = setInterval(updateDiskBackground, 30000);
+  gpuTimer = setInterval(updateGpuBackground, 5000);
 }
 
 // ─── IPC Handlers ────────────────────────────────────────────────────────
@@ -740,6 +794,7 @@ function quitApp() {
   app.isQuitting = true;
   if (pollTimer) clearTimeout(pollTimer);
   if (diskTimer) clearInterval(diskTimer);
+  if (gpuTimer) clearInterval(gpuTimer);
   app.quit();
 }
 
@@ -767,6 +822,7 @@ app.on('before-quit', () => {
 app.on('will-quit', () => {
   if (pollTimer) clearTimeout(pollTimer);
   if (diskTimer) clearInterval(diskTimer);
+  if (gpuTimer) clearInterval(gpuTimer);
   if (widget && !widget.isDestroyed()) widget.destroy();
   if (tray) tray.destroy();
 });

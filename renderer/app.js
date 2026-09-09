@@ -171,19 +171,19 @@ const lerp = (a, b, t) => a + (b - a) * t;
 
 const animState = {
   cpuLoad: 0,
-  cpuTemp: 40,
-  cpuFreq: 3.5,
-  cpuPower: 25,
+  cpuTemp: 0,
+  cpuFreq: 0,
+  cpuPower: 0,
   gpuLoad: 0,
-  gpuTemp: 50,
-  gpuPower: 35,
+  gpuTemp: 0,
+  gpuPower: 0,
   vramUsed: 0,
-  vramTotal: 8 * 1024 * 1024 * 1024,
+  vramTotal: 0,
   memUsed: 0,
-  memTotal: 16 * 1024 * 1024 * 1024,
+  memTotal: 0,
   memPct: 0,
   diskUsed: 0,
-  diskTotal: 500 * 1024 * 1024 * 1024,
+  diskTotal: 0,
   diskPct: 0,
   netRx: 0,
   netTx: 0,
@@ -244,14 +244,22 @@ function startAnimationLoop() {
     if (elGpuLoad) elGpuLoad.textContent = `${gpuLoadInt}%`;
 
     const elGpuTemp = $('#gpu-temp-v');
-    if (elGpuTemp) elGpuTemp.textContent = `${Math.round(animState.gpuTemp)}°C`;
+    if (elGpuTemp) elGpuTemp.textContent = animState.gpuTemp > 0 ? `${Math.round(animState.gpuTemp)}°C` : '—';
 
     const elGpuPower = $('#gpu-power-v');
-    if (elGpuPower) elGpuPower.textContent = `${Math.round(animState.gpuPower)} W`;
+    if (elGpuPower) elGpuPower.textContent = animState.gpuPower > 0 ? `${Math.round(animState.gpuPower)} W` : '—';
 
     const vramPct = targetState.vramTotal ? Math.round((animState.vramUsed / targetState.vramTotal) * 100) : 0;
     const elGpuVram = $('#gpu-vram-v');
-    if (elGpuVram) elGpuVram.textContent = `${fmtGB(animState.vramUsed)} / ${fmtGB(targetState.vramTotal)} GB (${vramPct}%)`;
+    if (elGpuVram) {
+      if (targetState.vramTotal > 0) {
+        elGpuVram.textContent = `${fmtGB(animState.vramUsed)} / ${fmtGB(targetState.vramTotal)} GB (${vramPct}%)`;
+      } else if (animState.vramUsed > 0) {
+        elGpuVram.textContent = `${fmtGB(animState.vramUsed)} GB`;
+      } else {
+        elGpuVram.textContent = '—';
+      }
+    }
 
     // 3. RAM & Disk values
     const elMemV = $('#mem-v');
@@ -316,18 +324,19 @@ function update(data) {
 
   // 2. GPU Telemetry
   const gpu = data.gpu || {};
-  const gpuModel = gpu.model || 'GPU';
+  const gpuModel = (gpu.model || 'GPU').trim();
   const gpuModelEl = $('#gpu-model');
   if (gpuModelEl) {
-    gpuModelEl.textContent = gpuModel.replace(/NVIDIA|GeForce|Graphics/gi, '').trim() || 'RTX 3060 Ti';
+    const cleaned = gpuModel.replace(/NVIDIA|GeForce|Graphics|Corporation/gi, '').replace(/\s+/g, ' ').trim();
+    gpuModelEl.textContent = cleaned || gpuModel || 'GPU';
     gpuModelEl.title = gpuModel;
   }
 
-  const gpuLoad = Math.max(0, Math.min(100, gpu.load ?? (cpuLoad * 0.7)));
-  const gpuTemp = gpu.temp || 50;
-  const gpuPower = gpu.power || 35;
+  const gpuLoad = Math.max(0, Math.min(100, typeof gpu.load === 'number' ? gpu.load : 0));
+  const gpuTemp = typeof gpu.temp === 'number' ? gpu.temp : 0;
+  const gpuPower = typeof gpu.power === 'number' ? gpu.power : 0;
   const vramUsed = gpu.vram || 0;
-  const vramTotal = gpu.vramTotal || (8 * 1024 * 1024 * 1024);
+  const vramTotal = gpu.vramTotal || 0;
   const vramPct = vramTotal ? Math.round((vramUsed / vramTotal) * 100) : 0;
 
   targetState.gpuLoad = gpuLoad;
@@ -335,6 +344,8 @@ function update(data) {
   targetState.gpuPower = gpuPower;
   targetState.vramUsed = vramUsed;
   targetState.vramTotal = vramTotal;
+
+  if (animState.vramTotal === 0 && vramTotal > 0) animState.vramTotal = vramTotal;
 
   const gpuVramBar = $('#gpu-vram-bar');
   if (gpuVramBar) gpuVramBar.style.width = `${vramPct}%`;
